@@ -302,7 +302,11 @@ module CSVHelper
                 csv << ["#{grouping} beginning : #{period_data[:start_date]} ending : #{period_data[:end_date]}"] 
                 added = true
              end
-             csv << ["#{period_data[:person_name].to_s.capitalize}", 
+             csv << [
+                    "#{period_data[:person_name_given].to_s.capitalize}", 
+                    "#{period_data[:person_name_family].to_s.capitalize}", 
+                    "#{period_data[:national_id].to_s.capitalize rescue ' '}", 
+                    "#{period_data[:ivr_id].to_s.capitalize rescue ' '}", 
                     "#{period_data[:on_tips].to_s.capitalize rescue ' '}", 
                     "#{period_data[:phone_type].to_s.capitalize rescue ' '}", 
                     "#{period_data[:phone_number] rescue ' '}", 
