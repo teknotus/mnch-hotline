@@ -1653,6 +1653,7 @@ module Report
    phone_type_concept = Concept.find_by_name('PHONE TYPE').id
    phone_number_concept = Concept.find_by_name('PHONE NUMBER').id
    on_tips_concept = Concept.find_by_name('ON TIPS AND REMINDERS PROGRAM').id
+   pregnancy_status_concept = Concept.find_by_name("PREGNANCY STATUS").id
    #data elements concepts
    pregnancy_concept = Concept.find_by_name('pregnancy').id
    child_concept = Concept.find_by_name('child').id
@@ -1660,6 +1661,9 @@ module Report
    chewa_concept = Concept.find_by_name('chichewa').id
    sms_concept = Concept.find_by_name('sms').id
    voice_concept = Concept.find_by_name('voice').id
+   #identifier ids
+   national_id_type = PatientIdentifierType.find(:first, :conditions => { :name => "National id" }).patient_identifier_type_id
+   ivr_id_type = PatientIdentifierType.find(:first, :conditions => { :name => "IVR Access Code" }).patient_identifier_type_id
 
    if grouping == "None"
      date_ranges = [[start_date, (end_date + " 23:59:59")]]
@@ -1673,41 +1677,61 @@ module Report
    date_ranges.map do |date_range|
 
      period_data = []
-     encounters_count = self.get_total_tips_encounters(date_range)
-     encounters = self.get_tips_data_by_name(date_range)
+#     encounters_count = self.get_total_tips_encounters(date_range)
+#     encounters = self.get_tips_data_by_name(date_range)
+     encounters = self.get_tips_encounters(date_range)
+     encounters_by_patient= encounters.group_by(&:patient_id)
 
-     encounters.group_by(&:patient_name).each do |name, data|
+    # encounters.group_by(&:patient_id).each do |id, data|
+     encounters_by_patient.each do |patient_id, tips_encounters|
+     patient = tips_encounters.first.patient
+     person = patient.person
+     person_names = person.names.first
+     national_id = patient.patient_identifiers.find(:first, :conditions => { :identifier_type => national_id_type }).identifier
+     ivr_id = patient.patient_identifiers.find(:first, :conditions => { :identifier_type => ivr_id_type }).identifier
 
      row_data = {:start_date => date_range.first,:end_date => date_range.last,
-               :person_name => name,
-               :total => encounters_count,
+               :person_name_given => person_names.given_name,
+               :person_name_family => person_names.family_name,
+               :national_id => national_id,
+               :ivr_id => ivr_id,
+               :total => tips_encounters.count,
                :on_tips => '--', :phone_type => '--',:phone_number => '--',
                :language => '--', :message_type => '--', :content => '--',
                :relevant_date => "--"
             }
-        data.each do |observation|
-           if observation.concept_id.to_i == content_concept then
-              actual_content_concept = Concept.find(observation.value_coded.to_i).fullname rescue nil
-              if not actual_content_concept == "WCBA"
-                row_data[:content] = actual_content_concept.to_s.capitalize
-              else
-                row_data[:content] = actual_content_concept
-              end
+        tips_encounters.each do |encounter|
 
-              row_data[:relevant_date] = self.get_relevant_date(actual_content_concept,
-                                                                observation[:person_id])
-           elsif observation.concept_id.to_i == language_concept
-              row_data[:language] = Concept.find(observation.value_coded.to_i).fullname rescue nil
-           elsif observation.concept_id.to_i == delivery_concept then
-              row_data[:message_type] = Concept.find(observation.value_coded.to_i).fullname rescue nil
-           elsif observation.concept_id.to_i == phone_type_concept
-              row_data[:phone_type] = Concept.find(observation.value_coded.to_i).fullname rescue nil
-           elsif observation.concept_id.to_i == phone_number_concept then
-              row_data[:phone_number] = observation.value_text
-           elsif observation.concept_id.to_i == on_tips_concept then
-              row_data[:on_tips] = Concept.find(observation.value_coded.to_i).fullname rescue nil
-           end
-        end
+          encounter.observations.each do |observation|
+#            observation.concept.concept_names.each do |concept_name|
+#              print "\'#{concept_name.name}\', "
+#            end
+#          puts "=> #{observation.value_text}\n"
+#          end
+#          puts 
+          if observation.concept_id.to_i == content_concept then
+             actual_content_concept = Concept.find(observation.value_coded.to_i).fullname rescue nil
+             if not actual_content_concept == "WCBA"
+               row_data[:content] = actual_content_concept.to_s.capitalize
+             else
+               row_data[:content] = actual_content_concept
+             end
+
+             row_data[:relevant_date] = self.get_relevant_date(actual_content_concept,
+                                                               observation[:person_id])
+          elsif observation.concept_id.to_i == language_concept
+             row_data[:language] = Concept.find(observation.value_coded.to_i).fullname rescue nil
+          elsif observation.concept_id.to_i == delivery_concept then
+             row_data[:message_type] = Concept.find(observation.value_coded.to_i).fullname rescue nil
+          elsif observation.concept_id.to_i == phone_type_concept
+             row_data[:phone_type] = Concept.find(observation.value_coded.to_i).fullname rescue nil
+          elsif observation.concept_id.to_i == phone_number_concept then
+             row_data[:phone_number] = observation.value_text
+          elsif observation.concept_id.to_i == on_tips_concept then
+             row_data[:on_tips] = Concept.find(observation.value_coded.to_i).fullname rescue nil
+          end
+       end
+     end
     period_data << row_data
    end
    call_data << period_data
@@ -1759,6 +1783,22 @@ module Report
                                                    nearest_health_center],
                                    :include => 'observations')
 =end
+
+  data_list = Encounter.find_by_sql(query)
+
+  data_list
+ end
+
+ def self.get_tips_encounters(date_range)
+
+   query = "SELECT DISTINCT e.*  
+            FROM encounter e 
+              INNER JOIN encounter_type et 
+                ON e.encounter_type = et.encounter_type_id 
+            WHERE e.encounter_datetime >= '#{date_range.first}' AND 
+                  e.encounter_datetime <= '#{date_range.last}' AND 
+                  et.name = 'TIPS AND REMINDERS' AND 
+                  e.voided = 0"
 
   data_list = Encounter.find_by_sql(query)
 
