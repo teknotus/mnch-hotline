@@ -870,7 +870,7 @@ class ReportController < ApplicationController
                                       @delivery, @number_prefix)
 
     if params[:destination] == 'csv'
-      report_header = ["Full Name", "On Tips", "Phone Type", "Phone Number",
+      report_header = ["First Name","Last Name", "National Id", "IVR Id",  "On Tips", "Phone Type", "Phone Number",
                        "Language", "Message Type", "Content","Relevant Date"
                        ]
       export_to_csv('individual_current_enrollments', report_header, @report, @patient_type,
